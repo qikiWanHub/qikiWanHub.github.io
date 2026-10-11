@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QikiWanHub</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --green: #00ff41;
+    --green-dim: #00a02a;
+    --cyan: #00fff9;
+    --magenta: #ff00c1;
+  }
+
+  html, body {
+    min-height: 100%;
+    background: #000;
+    color: var(--green);
+    font-family: 'Courier New', Courier, monospace;
+    overflow-x: hidden;
+  }
+
+  ::selection { background: var(--green); color: #000; }
+
+  #matrix {
+    position: fixed; inset: 0; z-index: 0; opacity: .15;
+  }
+  .scanlines {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px, transparent 2px,
+      rgba(0,0,0,.28) 3px, rgba(0,0,0,.28) 4px
+    );
+    opacity: .5;
+  }
+  .vignette {
+    position: fixed; inset: 0; z-index: 3; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.9) 100%);
+  }
+
+  main {
+    position: relative; z-index: 5;
+    min-height: 100vh;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 90px 24px 60px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .prompt {
+    font-size: .85rem;
+    color: var(--green-dim);
+    margin-bottom: 20px;
+    letter-spacing: .05em;
+  }
+  .prompt .cursor {
+    display: inline-block;
+    width: .6em; height: 1em;
+    background: var(--green);
+    vertical-align: -.15em;
+    margin-left: 2px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  h1 {
+    position: relative;
+    font-size: clamp(2.2rem, 11vw, 4.8rem);
+    line-height: 1;
+    letter-spacing: .08em;
+    color: var(--green);
+    text-shadow: 0 0 8px rgba(0,255,65,.7), 0 0 26px rgba(0,255,65,.3);
+    animation: flicker 5s infinite;
+    user-select: none;
+  }
+  h1::before, h1::after {
+    content: attr(data-text);
+    position: absolute; top: 0; left: 0;
+    width: 100%; background: #000; overflow: hidden;
+  }
+  h1::before {
+    color: var(--cyan);
+    clip-path: inset(0 0 58% 0);
+    animation: glitchA 2.6s infinite linear alternate-reverse;
+  }
+  h1::after {
+    color: var(--magenta);
+    clip-path: inset(56% 0 0 0);
+    animation: glitchB 3.1s infinite linear alternate-reverse;
+  }
+  @keyframes glitchA {
+    0%,100% { transform: translate(0,0); }
+    25% { transform: translate(-3px,1px); }
+    50% { transform: translate(-1px,-1px); }
+    75% { transform: translate(3px,1px); }
+  }
+  @keyframes glitchB {
+    0%,100% { transform: translate(0,0); }
+    25% { transform: translate(3px,-1px); }
+    50% { transform: translate(-2px,1px); }
+    75% { transform: translate(2px,2px); }
+  }
+  @keyframes flicker {
+    0%, 94%, 100% { opacity: 1; }
+    95% { opacity: .5; }
+    96% { opacity: 1; }
+    97% { opacity: .7; }
+    98% { opacity: 1; }
+  }
+
+  .subtitle {
+    margin-top: 16px;
+    font-size: .78rem;
+    letter-spacing: .3em;
+    color: var(--green-dim);
+    text-transform: uppercase;
+  }
+
+  .divider {
+    margin: 44px 0 30px;
+    font-size: .75rem;
+    letter-spacing: .1em;
+    color: rgba(0,160,42,.55);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
+  }
+
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border: 1px solid rgba(0,255,65,.28);
+    background: rgba(0,18,4,.55);
+    color: var(--green);
+    text-decoration: none;
+    font-size: 1rem;
+    letter-spacing: .04em;
+    transition: all .22s ease;
+  }
+  .item:hover, .item:focus {
+    border-color: var(--green);
+    background: rgba(0,255,65,.08);
+    box-shadow: 0 0 22px rgba(0,255,65,.3);
+    outline: none;
+    transform: translateX(4px);
+  }
+  .item .idx {
+    color: var(--green-dim);
+    font-size: .8rem;
+    letter-spacing: .1em;
+  }
+  .item .name {
+    flex: 1;
+  }
+  .item .meta {
+    font-size: .72rem;
+    color: var(--green-dim);
+    letter-spacing: .1em;
+  }
+  .item .arrow {
+    color: var(--green-dim);
+    transition: transform .22s ease, color .22s;
+  }
+  .item:hover .arrow {
+    color: var(--green);
+    transform: translateX(4px);
+  }
+
+  @media (max-width: 480px) {
+    main { padding: 60px 18px 40px; }
+    .item { padding: 14px 16px; font-size: .92rem; }
+    .item .meta { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix"></canvas>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<main>
+
+  <div class="prompt">root@qikiwanhub:~$ ls ./projects<span class="cursor"></span></div>
+
+  <h1 data-text="QikiWanHub">QikiWanHub</h1>
+  <p class="subtitle">// Works Navigation</p>
+
+  <div class="divider">──────────────────────────────────</div>
+
+  <!-- 项目列表：以后加新网站，就往这里加 <a> 标签 -->
+  <nav class="list">
+
+    <a class="item"
+       href="https://qikiwanhubBadAi.github.io"
+       target="_blank"
+       rel="noopener noreferrer">
+      <span class="idx">[01]</span>
+      <span class="name">智障 AI 模型</span>
+      <span class="meta">OPPO A5 / barely alive</span>
+      <span class="arrow">&gt;</span>
+    </a>
+
+    <!-- 示例：复制上面整段 <a>，改编号、名字、网址即可
+    <a class="item" href="https://你的网址" target="_blank" rel="noopener noreferrer">
+      <span class="idx">[02]</span>
+      <span class="name">新项目名字</span>
+      <span class="meta">简短说明</span>
+      <span class="arrow">&gt;</span>
+    </a>
+    -->
+
+  </nav>
+
+</main>
+
+<script>
+/* 数字雨 */
+(function () {
+  const canvas = document.getElementById('matrix');
+  const ctx = canvas.getContext('2d');
+  const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF<>/\\|{}[]$#@%&*';
+  const fontSize = 15;
+  let cols = 0, drops = [];
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / fontSize);
+    drops = new Array(cols).fill(0).map(() => Math.random() * -50);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw() {
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = fontSize + 'px monospace';
+    for (let i = 0; i < cols; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const y = drops[i] * fontSize;
+      ctx.fillStyle = Math.random() > 0.97 ? '#ccffdd' : '#00ff41';
+      ctx.fillText(ch, i * fontSize, y);
+      if (y > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+  setInterval(draw, 55);
+})();
+</script>
+</body>
+</html>
